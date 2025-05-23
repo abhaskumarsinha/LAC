@@ -1,8 +1,8 @@
 import argparse
 import os
 import wandb
-import safety_gym
-import gym
+#import safety_gym
+#import gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,6 +14,55 @@ from models import GaussianPolicy, LangevinPolicy, Critic
 from utils import *
 from collections import deque
 from pathlib import Path
+
+# ─── STUB OUT GYM ───────────────────────────────────────────────────────────────
+import sys, types
+import numpy as np
+
+class DummySpace:
+    def __init__(self, shape, high=None, low=None):
+        self.shape = shape
+        self.high  = np.array(high) if high is not None else np.ones(shape)
+        self.low   = np.array(low)  if low  is not None else -np.ones(shape)
+
+    def sample(self):
+        return self.low + (self.high - self.low) * np.random.rand(*self.shape)
+
+class DummySpec:
+    def __init__(self, env_id):
+        self.id = env_id
+
+class DummyEnv:
+    def __init__(self, env_id):
+        self.spec = DummySpec(env_id)
+        self.observation_space = DummySpace((4,))
+        self.action_space      = DummySpace((2,))
+
+    def reset(self):
+        return np.zeros(self.observation_space.shape)
+
+    def step(self, action):
+        next_obs = np.zeros(self.observation_space.shape)
+        reward   = 0.0
+        done     = False
+        # include all the keys your code might look for
+        info = {
+            'cost':      0.0,
+            'x_velocity': 0.0,
+            'y_velocity': 0.0,
+        }
+        return next_obs, reward, done, info
+
+_dummy_gym = types.ModuleType("gym")
+_dummy_gym.make   = lambda env_id: DummyEnv(env_id)
+_dummy_gym.Env    = DummyEnv
+_dummy_gym.spaces = types.SimpleNamespace(Box=DummySpace)
+_dummy_gym.spec   = DummySpec
+sys.modules["gym"] = _dummy_gym
+
+# ────────────────────────────────────────────────────────────────────────────────
+
+import gym
 
 
 class LAC:
@@ -131,6 +180,7 @@ class LAC:
         for epoch in range(self.num_epochs):
 
             for _, (obs_b, act_b, next_obs_b, reward, cost, not_done) in enumerate(loader):
+                print('Updating...')
 
                 obs_b, act_b, next_obs_b, reward, cost, not_done = obs_b.to(device), act_b.to(device), next_obs_b.to(device), reward.to(device), cost.to(device), not_done.to(device)
 
@@ -261,7 +311,7 @@ def train(args):
     # Initialize random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    env.seed(args.seed)
+    #env.seed(args.seed)
 
     # Initialize neural nets
     policy = LangevinPolicy(obs_dim,
@@ -356,6 +406,7 @@ def train(args):
     data_generator = DataGenerator(obs_dim, act_dim, args.memory_size, args.batch_size, args.max_eps_len)
 
     for iter in range(args.max_iter_num):
+        print('Train...')
 
         # Update iteration for model
         agent.logger.save_model('iter', iter)
